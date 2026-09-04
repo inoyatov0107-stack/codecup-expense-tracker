@@ -3,10 +3,11 @@ from decimal import Decimal
 import httpx
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandObject
-from aiogram.types import Message
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 API = os.getenv("API_INTERNAL_URL", "http://api:8000/api")
+PANEL_URL = "https://dynamic-cat-production.up.railway.app/"
 dp = Dispatcher()
 PATTERN = re.compile(r"^\s*(\d+(?:[.,]\d{1,2})?)\s+(.+?)\s*$")
 CATEGORY_KEYWORDS = {
@@ -47,7 +48,8 @@ async def api(path, message, method="GET", payload=None):
 
 @dp.message(Command("start"))
 async def start(message: Message):
-    await message.answer("Привет! Отправь трату одной строкой: «45 такси» или «120 обед #Еда».\nКоманды: /today, /week, /month, /list, /delete ID, /edit ID сумма описание #Категория")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📊 Мои расходы", url=PANEL_URL)]])
+    await message.answer("Привет! Отправь трату одной строкой: «45 такси» или «120 обед #Еда».\nКоманды: /today, /week, /month, /list, /delete ID, /edit ID сумма описание #Категория", reply_markup=keyboard)
 
 @dp.message(Command("today", "week", "month"))
 async def report(message: Message):
