@@ -21,7 +21,7 @@ def parse(text: str):
 
 async def api(path, message, method="GET", payload=None):
     async with httpx.AsyncClient() as client:
-        response = await client.request(method, f"{API}{path}", json=payload, headers={"X-Telegram-Id": str(message.from_user.id), "X-Telegram-Name": message.from_user.full_name, "X-Bot-Token": os.environ["BOT_API_TOKEN"]})
+        response = await client.request(method, f"{API}{path}", json=payload, headers={"X-Telegram-Id": str(message.from_user.id), "X-Telegram-Name": message.from_user.full_name, "X-Bot-Token": TOKEN})
         response.raise_for_status(); return response.json() if response.content else None
 
 @dp.message(Command("start"))
