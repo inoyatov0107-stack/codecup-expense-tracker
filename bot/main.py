@@ -1,5 +1,6 @@
 import asyncio, os, re
 from decimal import Decimal
+from urllib.parse import quote
 import httpx
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandObject
@@ -37,7 +38,7 @@ def parse(text):
  return Decimal(amount.replace(",",".")),rest,category
 async def api(path,message,method="GET",payload=None):
  async with httpx.AsyncClient() as client:
-  r=await client.request(method,f"{API}{path}",json=payload,headers={"X-Telegram-Id":str(message.from_user.id),"X-Telegram-Name":message.from_user.full_name,"X-Bot-Token":TOKEN})
+  r=await client.request(method,f"{API}{path}",json=payload,headers={"X-Telegram-Id":str(message.from_user.id),"X-Telegram-Name-Encoded":quote(message.from_user.full_name, safe=""),"X-Bot-Token":TOKEN})
   r.raise_for_status();return r.json() if r.content else None
 def panel_button(): return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📊 Открыть мои расходы",url=PANEL_URL)]])
 def menu(): return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="📊 Мои расходы")]],resize_keyboard=True,is_persistent=True)
