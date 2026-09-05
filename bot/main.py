@@ -1,15 +1,27 @@
-import asyncio, os, re
+import asyncio, os, re, logging
 from decimal import Decimal
 from urllib.parse import quote
 import httpx
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandObject
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, Message, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, Message, ReplyKeyboardMarkup, ErrorEvent
 
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 API = os.getenv("API_INTERNAL_URL", "http://api:8000/api")
 PANEL_URL = "https://dynamic-cat-production.up.railway.app/"
 dp = Dispatcher()
+api_slots = asyncio.Semaphore(20)
+
+@dp.errors()
+async def handle_error(event: ErrorEvent):
+ logging.error("Bot handler failed: %s", type(event.exception).__name__)
+ if event.update.message:
+  if isinstance(event.exception, httpx.HTTPStatusError) and event.exception.response.status_code == 422:
+   text = "Проверьте сумму и описание: сумма должна быть больше нуля, максимум 2 знака после запятой."
+  else:
+   text = "Не удалось подтвердить операцию. Проверьте /list перед повтором, чтобы не записать трату дважды. Попробуйте позже."
+  await event.update.message.answer(text)
+ return True
 PATTERN = re.compile(r"^\s*(\d+(?:[.,]\d{1,2})?)\s+(.+?)\s*$")
 KEYWORDS = {
  "Еда": ("кафе","ресторан","обед","продукт","магазин","кофе","еда","хӯрок","хурок","мағоза","қаҳва"),
@@ -35,9 +47,11 @@ def parse(text):
  amount,rest=m.groups(); category=None
  if " #" in rest: rest,category=rest.rsplit(" #",1); category=category.strip().title()
  category=category or next((name for name,words in KEYWORDS.items() if any(word in rest.lower() for word in words)),"Другое")
- return Decimal(amount.replace(",",".")),rest,category
+ amount = Decimal(amount.replace(",","."))
+ if not 0 < amount < Decimal("10000000000") or not rest.strip() or len(rest)>1000 or not category or len(category)>64:return None
+ return amount,rest,category
 async def api(path,message,method="GET",payload=None):
- async with httpx.AsyncClient() as client:
+ async with api_slots, httpx.AsyncClient(timeout=15) as client:
   r=await client.request(method,f"{API}{path}",json=payload,headers={"X-Telegram-Id":str(message.from_user.id),"X-Telegram-Name-Encoded":quote(message.from_user.full_name, safe=""),"X-Bot-Token":TOKEN})
   r.raise_for_status();return r.json() if r.content else None
 def panel_button(): return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📊 Открыть мои расходы",url=PANEL_URL)]])
@@ -53,7 +67,14 @@ async def report(message:Message):
  data=await api("/bot/summary",message);period=message.text[1:];await message.answer(f"{period.capitalize()}: {data[period]:.2f} TJS")
 @dp.message(Command("list"))
 async def list_items(message:Message):
- rows=await api("/bot/expenses",message);await message.answer("\n".join(f"#{x['id']} · {x['amount']:.2f} TJS · {x['category']} — {x['description']}" for x in rows) or "Трат пока нет")
+ rows=await api("/bot/expenses",message)
+ if not rows:await message.answer("Трат пока нет");return
+ chunk=""
+ for x in rows:
+  line=f"#{x['id']} · {x['amount']:.2f} TJS · {x['category']} — {x['description']}\n"
+  if len(chunk)+len(line)>3500:await message.answer(chunk);chunk=""
+  chunk+=line
+ if chunk:await message.answer(chunk)
 @dp.message(Command("delete"))
 async def delete_item(message:Message,command:CommandObject):
  if not command.args or not command.args.isdigit():await message.answer("Формат: /delete ID. Номер видно в /list");return
