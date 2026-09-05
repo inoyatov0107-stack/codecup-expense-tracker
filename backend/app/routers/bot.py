@@ -7,16 +7,14 @@ from ..config import settings
 from ..database import get_session
 from ..models import Expense, User
 from ..schemas import ExpenseIn
+from ..auth import get_or_create_user
 
 router = APIRouter(prefix="/bot", tags=["bot"])
 
 async def bot_user(x_bot_token: str = Header(...), x_telegram_id: int = Header(...), x_telegram_name: str = Header("User"), session: AsyncSession = Depends(get_session), x_telegram_name_encoded: str | None = Header(None)):
     if x_bot_token not in {settings.bot_api_token, settings.telegram_bot_token}: raise HTTPException(401, "Invalid bot credential")
-    user = await session.scalar(select(User).where(User.telegram_id == x_telegram_id))
-    if not user:
-        name = unquote(x_telegram_name_encoded) if x_telegram_name_encoded is not None else x_telegram_name
-        user = User(telegram_id=x_telegram_id, first_name=name[:128]); session.add(user); await session.commit(); await session.refresh(user)
-    return user
+    name = unquote(x_telegram_name_encoded) if x_telegram_name_encoded is not None else x_telegram_name
+    return await get_or_create_user(session, x_telegram_id, name)
 
 @router.post("/expenses")
 async def create_expense(data: ExpenseIn, user: User = Depends(bot_user), session: AsyncSession = Depends(get_session)):

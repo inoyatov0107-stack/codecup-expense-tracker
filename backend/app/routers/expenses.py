@@ -10,6 +10,11 @@ from ..schemas import ExpenseIn, ExpenseOut
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
+def csv_text(value):
+    # Prevent spreadsheet formula execution in user-supplied text cells.
+    value = str(value)
+    return "'" + value if value.lstrip().startswith(("=", "+", "-", "@")) or value.startswith(("\t", "\r", "\n")) else value
+
 @router.get("", response_model=list[ExpenseOut])
 async def list_expenses(user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
     return (await session.scalars(select(Expense).where(Expense.user_id == user.id).order_by(Expense.spent_at.desc()))).all()
@@ -36,5 +41,5 @@ async def delete_expense(expense_id: int, user: User = Depends(current_user), se
 async def export_csv(user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
     rows = (await session.scalars(select(Expense).where(Expense.user_id == user.id).order_by(Expense.spent_at.desc()))).all()
     out = io.StringIO(); writer = csv.writer(out); writer.writerow(["id", "amount", "currency", "category", "description", "spent_at"])
-    writer.writerows([[x.id, x.amount, x.currency, x.category, x.description, x.spent_at.isoformat()] for x in rows])
+    writer.writerows([[x.id, x.amount, csv_text(x.currency), csv_text(x.category), csv_text(x.description), x.spent_at.isoformat()] for x in rows])
     return Response(out.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=expenses.csv"})
