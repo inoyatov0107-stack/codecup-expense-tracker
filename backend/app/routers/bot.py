@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from urllib.parse import unquote
 from fastapi import APIRouter, Header, HTTPException, Depends
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,11 +10,12 @@ from ..schemas import ExpenseIn
 
 router = APIRouter(prefix="/bot", tags=["bot"])
 
-async def bot_user(x_bot_token: str = Header(...), x_telegram_id: int = Header(...), x_telegram_name: str = Header("User"), session: AsyncSession = Depends(get_session)):
+async def bot_user(x_bot_token: str = Header(...), x_telegram_id: int = Header(...), x_telegram_name: str = Header("User"), session: AsyncSession = Depends(get_session), x_telegram_name_encoded: str | None = Header(None)):
     if x_bot_token not in {settings.bot_api_token, settings.telegram_bot_token}: raise HTTPException(401, "Invalid bot credential")
     user = await session.scalar(select(User).where(User.telegram_id == x_telegram_id))
     if not user:
-        user = User(telegram_id=x_telegram_id, first_name=x_telegram_name[:128]); session.add(user); await session.commit(); await session.refresh(user)
+        name = unquote(x_telegram_name_encoded) if x_telegram_name_encoded is not None else x_telegram_name
+        user = User(telegram_id=x_telegram_id, first_name=name[:128]); session.add(user); await session.commit(); await session.refresh(user)
     return user
 
 @router.post("/expenses")
