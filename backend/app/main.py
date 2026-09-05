@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from sqlalchemy import text
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .database import engine
@@ -21,4 +22,10 @@ app.include_router(limits.router, prefix="/api")
 app.include_router(bot.router, prefix="/api")
 
 @app.get("/health")
-async def health(): return {"status": "ok"}
+async def health():
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+    except Exception:
+        raise HTTPException(503, "Database unavailable")
+    return {"status": "ok"}
