@@ -186,7 +186,13 @@ async def history_month(query:CallbackQuery):
  await query.answer()
  data=await api(f"/bot/month?year={year}&month={month}",query)
  totals="\n".join(f"{Decimal(data['totals'].get(c,'0')):.2f} {c}" for c in ("RUB","TJS"))
- await query.message.edit_text(f"{MONTH_NAMES[int(month)-1]} {year}\nРасходы:\n{totals}\n{data['timezone']}",reply_markup=month_keyboard(int(year)))
+ text=f"{MONTH_NAMES[int(month)-1]} {year}\nРасходы:\n{totals}\n{data['timezone']}"
+ if query.message.text==text:return
+ from aiogram.exceptions import TelegramBadRequest
+ try:
+  await query.message.edit_text(text,reply_markup=month_keyboard(int(year)))
+ except TelegramBadRequest as exc:
+  if "message is not modified" not in str(exc).lower():raise
 
 @dp.message(Command("today","week"))
 async def report(message:Message):
