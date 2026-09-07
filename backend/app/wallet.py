@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from .models import Expense, Income, MonthlyBudget, WalletSettings
+from .localization import period_starts, user_zone
 
 Currency = Literal["TJS", "RUB"]
 
@@ -29,10 +30,11 @@ async def selected_currency(session, user_id):
 
 async def budget_status(session, user_id, currency):
     now = datetime.now(timezone.utc)
-    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    zone = await user_zone(session, user_id)
+    start = period_starts(zone, now)["month"]
     limit = await session.scalar(select(MonthlyBudget.amount).where(MonthlyBudget.user_id == user_id, MonthlyBudget.currency == currency))
     spent = await session.scalar(select(func.coalesce(func.sum(Expense.amount), 0)).where(Expense.user_id == user_id, Expense.currency == currency, Expense.spent_at >= start, Expense.spent_at <= now))
-    return {"currency": currency, "limit": str(limit or 0), "spent": str(spent),
+    return {"currency": currency, "timezone": zone, "limit": str(limit or 0), "spent": str(spent),
             "level": 100 if limit and spent >= limit else 80 if limit and spent >= limit * Decimal("0.8") else 0}
 
 

@@ -60,3 +60,12 @@ class MonthlyBudget(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     currency: Mapped[str] = mapped_column(String(3), primary_key=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+
+
+class BotProfile(Base):
+    __tablename__ = "bot_profiles"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    language: Mapped[str] = mapped_column(String(2), default="ru")
+    timezone: Mapped[str] = mapped_column(String(64), default="UTC")
+    seen_version: Mapped[str] = mapped_column(String(32), default="")
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str
     bot_api_token: str
     web_origin: str = "http://localhost:3000"
+    bot_owner_id: int = 0
 
 
 settings = Settings()
