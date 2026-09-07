@@ -1,4 +1,6 @@
 import asyncio, os, re, logging
+from pathlib import Path
+from aiogram.types import FSInputFile
 from weakref import WeakValueDictionary
 from aiogram import BaseMiddleware
 from bot_texts import t, labels, language
@@ -13,6 +15,7 @@ TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 API = os.getenv("API_INTERNAL_URL", "http://api:8000/api")
 PANEL_URL = "https://dynamic-cat-production.up.railway.app/"
 dp = Dispatcher()
+WELCOME_IMAGE = Path(__file__).with_name("welcome.png")
 api_slots = asyncio.Semaphore(20)
 
 @dp.errors()
@@ -123,7 +126,12 @@ session_middleware=PrivateSession()
 dp.message.outer_middleware(session_middleware)
 dp.callback_query.outer_middleware(session_middleware)
 
-async def welcome(actor,target):
+async def welcome(actor,target,show_image=False):
+ if show_image:
+  try:
+   await target.answer_photo(FSInputFile(WELCOME_IMAGE),reply_markup=InlineKeyboardMarkup(inline_keyboard=[[button("original_image","welcome_original")]]))
+  except Exception as exc:
+   logging.warning("Welcome image failed: %s",type(exc).__name__)
  await target.answer(t("welcome")+t("help_text"),reply_markup=menu())
  await target.answer(t("language_hint"),reply_markup=InlineKeyboardMarkup(inline_keyboard=[
   [InlineKeyboardButton(text="Русский",callback_data="language:ru"),InlineKeyboardButton(text="Тоҷикӣ",callback_data="language:tg")],
@@ -133,11 +141,15 @@ async def welcome(actor,target):
 @dp.message(Command("start","help"))
 @dp.message(F.text.in_(labels("help")))
 async def start(message:Message):
- await welcome(message,message)
+ await welcome(message,message,show_image=(message.text or "").split()[0].split("@")[0]=="/start")
 help_message=start
 @dp.callback_query(F.data=="welcome")
 async def start_callback(query:CallbackQuery):
- await query.answer();await welcome(query,query.message)
+ await query.answer();await welcome(query,query.message,show_image=True)
+@dp.callback_query(F.data=="welcome_original")
+async def welcome_original(query:CallbackQuery):
+ await query.answer()
+ await query.message.answer_document(FSInputFile(WELCOME_IMAGE,filename="CodeCup-original.png"))
 @dp.message(Command("updates"))
 async def updates(message:Message):
  await message.answer(t("release"),reply_markup=start_button())

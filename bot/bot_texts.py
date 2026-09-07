@@ -2,6 +2,7 @@ from contextvars import ContextVar
 
 language = ContextVar("bot_language", default="ru")
 TEXT = {
+"original_image": ("📎 Скачать оригинал без сжатия", "📎 Боргирии асл бе фишурдасозӣ"),
 "expenses": ("📊 Мои расходы", "📊 Хароҷоти ман"),
 "balance": ("💰 Баланс", "💰 Бақия"),
 "income": ("➕ Доход", "➕ Даромад"),
