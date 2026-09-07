@@ -37,3 +37,26 @@ class CategoryLimit(Base):
     category: Mapped[str] = mapped_column(String(64))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     period: Mapped[str] = mapped_column(String(10), default="month")
+
+
+class WalletSettings(Base):
+    __tablename__ = "wallet_settings"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    currency: Mapped[str] = mapped_column(String(3), default="TJS")
+
+
+class Income(Base):
+    __tablename__ = "incomes"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    currency: Mapped[str] = mapped_column(String(3))
+    description: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class MonthlyBudget(Base):
+    __tablename__ = "monthly_budgets"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    currency: Mapped[str] = mapped_column(String(3), primary_key=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
