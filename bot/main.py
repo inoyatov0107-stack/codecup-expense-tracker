@@ -1,6 +1,6 @@
 import asyncio, os, re, logging
 from pathlib import Path
-from aiogram.types import FSInputFile
+from aiogram.types import FSInputFile, LinkPreviewOptions
 from weakref import WeakValueDictionary
 from aiogram import BaseMiddleware
 from bot_texts import t, labels, language
@@ -16,6 +16,7 @@ API = os.getenv("API_INTERNAL_URL", "http://api:8000/api")
 PANEL_URL = "https://dynamic-cat-production.up.railway.app/"
 dp = Dispatcher()
 WELCOME_IMAGE = Path(__file__).with_name("welcome.png")
+WELCOME_IMAGE_URL = "https://raw.githubusercontent.com/inoyatov0107-stack/codecup-expense-tracker/main/bot/welcome.png?v=robot-v4"
 api_slots = asyncio.Semaphore(20)
 
 @dp.errors()
@@ -127,15 +128,13 @@ dp.message.outer_middleware(session_middleware)
 dp.callback_query.outer_middleware(session_middleware)
 
 async def welcome(actor,target,show_image=False):
- if show_image:
-  try:
-   await target.answer_photo(FSInputFile(WELCOME_IMAGE),reply_markup=InlineKeyboardMarkup(inline_keyboard=[[button("original_image","welcome_original")]]))
-  except Exception as exc:
-   logging.warning("Welcome image failed: %s",type(exc).__name__)
- await target.answer(t("welcome")+t("help_text"),reply_markup=menu())
+ # A text message keeps the full help text beyond the 1024-character photo caption limit.
+ preview = LinkPreviewOptions(url=WELCOME_IMAGE_URL,prefer_large_media=True,show_above_text=True) if show_image else LinkPreviewOptions(is_disabled=True)
+ await target.answer(t("welcome")+t("help_text"),reply_markup=menu(),link_preview_options=preview)
  await target.answer(t("language_hint"),reply_markup=InlineKeyboardMarkup(inline_keyboard=[
   [InlineKeyboardButton(text="Русский",callback_data="language:ru"),InlineKeyboardButton(text="Тоҷикӣ",callback_data="language:tg")],
-  [button("timezone","timezone_menu"),button("currency","currency_menu")]]))
+  [button("timezone","timezone_menu"),button("currency","currency_menu")],
+  *([[button("original_image","welcome_original")]] if show_image else [])]))
  await api("/bot/profile/seen",actor,"PUT",{"version":VERSION})
 
 @dp.message(Command("start","help"))
