@@ -10,6 +10,7 @@ from ..localization import ProfileIn, VersionIn, ZONES, period_starts, user_zone
 from ..wallet import Currency, CurrencyIn, IncomeIn, BudgetIn, selected_currency, budget_status, balance
 from ..schemas import ExpenseIn
 from ..auth import get_or_create_user
+from zoneinfo import ZoneInfo
 
 router = APIRouter(prefix="/bot", tags=["bot"])
 
@@ -30,6 +31,14 @@ async def summary(user: User = Depends(bot_user), session: AsyncSession = Depend
     zone = await user_zone(session, user.id)
     starts = period_starts(zone, now)
     return {"currency": currency, "timezone": zone, **{key: float((await session.scalar(select(func.coalesce(func.sum(Expense.amount), 0)).where(Expense.user_id == user.id, Expense.currency == currency, Expense.spent_at >= start, Expense.spent_at <= now))) or 0) for key, start in starts.items()}}
+
+@router.get("/month")
+async def month_report(year: int = Query(ge=1, le=9998), month: int = Query(ge=1, le=12), user: User = Depends(bot_user), session: AsyncSession = Depends(get_session)):
+    zone = await user_zone(session, user.id)
+    start = datetime(year, month, 1, tzinfo=ZoneInfo(zone)).astimezone(timezone.utc)
+    end = datetime(year + (month == 12), month % 12 + 1, 1, tzinfo=ZoneInfo(zone)).astimezone(timezone.utc)
+    rows = (await session.execute(select(Expense.currency, func.sum(Expense.amount)).where(Expense.user_id == user.id, Expense.spent_at >= start, Expense.spent_at < end).group_by(Expense.currency))).all()
+    return {"year": year, "month": month, "timezone": zone, "totals": {currency: str(amount) for currency, amount in rows}}
 
 @router.get("/expenses")
 async def list_expenses(user: User = Depends(bot_user), session: AsyncSession = Depends(get_session)):
