@@ -159,7 +159,36 @@ async def myid(message:Message):
 @dp.message(F.text.in_(labels("expenses")))
 async def dashboard(message:Message):
  await message.answer(t("panel_hint"),reply_markup=panel_button())
-@dp.message(Command("today","week","month"))
+MONTH_NAMES = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"]
+def month_keyboard(year):
+ return InlineKeyboardMarkup(inline_keyboard=[
+  [InlineKeyboardButton(text=MONTH_NAMES[m-1],callback_data=f"history:{year}:{m}") for m in range(first,first+3)] for first in (1,4,7,10)
+ ]+[[InlineKeyboardButton(text=f"‹ {year-1}",callback_data=f"history_year:{year-1}"),InlineKeyboardButton(text=f"{year+1} ›",callback_data=f"history_year:{year+1}")]])
+
+@dp.message(Command("month"))
+async def choose_month(message:Message):
+ from datetime import datetime
+ from zoneinfo import ZoneInfo
+ data=await api("/bot/summary",message)
+ year=datetime.now(ZoneInfo(data["timezone"])).year
+ await message.answer(f"{t('month')}: {data['month']:.2f} {data['currency']}\nВыберите месяц · {year}",reply_markup=month_keyboard(year))
+
+@dp.callback_query(F.data.startswith("history_year:"))
+async def history_year(query:CallbackQuery):
+ year=int(query.data.split(":")[1])
+ if not 2<=year<=9997:await query.answer();return
+ await query.answer()
+ await query.message.edit_text(f"Выберите месяц · {year}",reply_markup=month_keyboard(year))
+
+@dp.callback_query(F.data.startswith("history:"))
+async def history_month(query:CallbackQuery):
+ _,year,month=query.data.split(":")
+ await query.answer()
+ data=await api(f"/bot/month?year={year}&month={month}",query)
+ totals="\n".join(f"{Decimal(data['totals'].get(c,'0')):.2f} {c}" for c in ("RUB","TJS"))
+ await query.message.edit_text(f"{MONTH_NAMES[int(month)-1]} {year}\nРасходы:\n{totals}\n{data['timezone']}",reply_markup=month_keyboard(int(year)))
+
+@dp.message(Command("today","week"))
 async def report(message:Message):
  data=await api("/bot/summary",message);period=message.text.split()[0][1:].split("@")[0]
  await message.answer(f"{t(period)}: {data[period]:.2f} {data['currency']}\n{data['timezone']}")
@@ -335,5 +364,19 @@ async def expense(message:Message):
  item=await api("/bot/expenses",message,"POST",{"amount":str(amount),"currency":currency,"category":category,"description":description})
  await message.answer(t("saved",amount=amount,currency=currency,category=category,description=description),reply_markup=undo_button("expenses",item["id"]))
  await show_budget_warning(message,currency)
-async def main():await dp.start_polling(Bot(TOKEN))
+async def main():
+ bot=Bot(TOKEN)
+ try:
+  me=await bot.get_me()
+  photos=await bot.get_user_profile_photos(me.id,limit=1)
+  if photos.total_count==0:
+   import json
+   with Path(__file__).with_name("avatar.jpg").open("rb") as photo:
+    async with httpx.AsyncClient(timeout=30) as client:
+     response=await client.post(f"https://api.telegram.org/bot{TOKEN}/setMyProfilePhoto",data={"photo":json.dumps({"type":"static","photo":"attach://avatar"})},files={"avatar":("avatar.jpg",photo,"image/jpeg")})
+     success=response.json().get("ok",False)
+     logging.warning("Initial bot avatar installed: %s",success)
+ except Exception as exc:
+  logging.warning("Avatar setup failed: %s",type(exc).__name__)
+ await dp.start_polling(bot)
 if __name__=="__main__":asyncio.run(main())
